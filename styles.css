@@ -123,6 +123,40 @@ section h2 {
     border-color: var(--primary-color);
 }
 
+.month-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: var(--background);
+    border-radius: 8px;
+}
+
+.month-selector label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.month-input {
+    padding: 10px 15px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.month-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.hidden {
+    display: none !important;
+}
+
 .summary-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -460,4 +494,13 @@ footer {
 
 .expense-item {
     animation: slideIn 0.3s ease-out;
+}
+
+/* PWA Install Button */
+.install-app-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    box-shadow: var(--shadow-lg);
 }

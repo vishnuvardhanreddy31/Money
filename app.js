@@ -3,12 +3,18 @@ class ExpenseTracker {
     constructor() {
         this.expenses = this.loadExpenses();
         this.currentPeriod = 'today';
+        this.customMonth = null;
         this.init();
     }
 
     init() {
         // Set today's date as default
         document.getElementById('date').valueAsDate = new Date();
+        
+        // Set current month as default in month selector
+        const now = new Date();
+        const monthYearValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById('monthYear').value = monthYearValue;
 
         // Event Listeners
         document.getElementById('expenseForm').addEventListener('submit', (e) => this.handleAddExpense(e));
@@ -17,6 +23,7 @@ class ExpenseTracker {
         document.getElementById('importFile').addEventListener('change', (e) => this.importData(e));
         document.getElementById('searchInput').addEventListener('input', (e) => this.filterExpenses());
         document.getElementById('categoryFilter').addEventListener('change', (e) => this.filterExpenses());
+        document.getElementById('monthYear').addEventListener('change', (e) => this.handleCustomMonthChange(e));
 
         // Time filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -141,6 +148,18 @@ class ExpenseTracker {
                     return expenseDate >= weekAgo;
                 
                 case 'month':
+                    if (this.customMonth) {
+                        // Validate format and ranges before processing
+                        const monthPattern = /^\d{4}-\d{2}$/;
+                        if (monthPattern.test(this.customMonth)) {
+                            const [year, month] = this.customMonth.split('-').map(Number);
+                            // Validate month (1-12) and reasonable year range
+                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                                return expenseDate.getMonth() === (month - 1) &&
+                                       expenseDate.getFullYear() === year;
+                            }
+                        }
+                    }
                     return expenseDate.getMonth() === now.getMonth() &&
                            expenseDate.getFullYear() === now.getFullYear();
                 
@@ -159,6 +178,25 @@ class ExpenseTracker {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         e.target.classList.add('active');
         this.currentPeriod = e.target.dataset.period;
+        
+        // Show/hide month selector based on period
+        const monthSelector = document.getElementById('monthSelector');
+        if (this.currentPeriod === 'month') {
+            monthSelector.classList.remove('hidden');
+            // Set custom month to current selection
+            this.customMonth = document.getElementById('monthYear').value;
+        } else {
+            monthSelector.classList.add('hidden');
+            this.customMonth = null;
+        }
+        
+        this.filterExpenses();
+        this.updateSummary();
+    }
+    
+    // Handle custom month change
+    handleCustomMonthChange(e) {
+        this.customMonth = e.target.value;
         this.filterExpenses();
         this.updateSummary();
     }
@@ -343,3 +381,73 @@ class ExpenseTracker {
 
 // Initialize the app
 const tracker = new ExpenseTracker();
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+            .then((registration) => {
+                console.log('ServiceWorker registered successfully:', registration.scope);
+            })
+            .catch((error) => {
+                console.log('ServiceWorker registration failed:', error);
+            });
+    });
+}
+
+// PWA Install Prompt
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing
+    e.preventDefault();
+    // Stash the event so it can be triggered later
+    deferredPrompt = e;
+    // Show install button or notification
+    showInstallPromotion();
+});
+
+// Show install promotion - creates install button if it doesn't exist (idempotent)
+function showInstallPromotion() {
+    // Create install button if it doesn't exist
+    const existingBtn = document.getElementById('installBtn');
+    if (existingBtn) return;
+    
+    const installBtn = document.createElement('button');
+    installBtn.id = 'installBtn';
+    installBtn.className = 'btn btn-secondary install-app-btn';
+    installBtn.innerHTML = '📱 Install App';
+    
+    installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        
+        try {
+            // Show the install prompt
+            deferredPrompt.prompt();
+            
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            
+            // Clear the deferredPrompt
+            deferredPrompt = null;
+            
+            // Remove the install button
+            installBtn.remove();
+        } catch (error) {
+            console.error('Error during app installation:', error);
+        }
+    });
+    
+    document.body.appendChild(installBtn);
+}
+
+window.addEventListener('appinstalled', () => {
+    console.log('PWA was installed');
+    // Hide the install button if it exists
+    const installBtn = document.getElementById('installBtn');
+    if (installBtn) {
+        installBtn.remove();
+    }
+    deferredPrompt = null;
+});

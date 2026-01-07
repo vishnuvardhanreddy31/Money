@@ -5,6 +5,7 @@ A simple, clean, and efficient web application to track your personal expenses. 
 ## 🌟 Features
 
 - **Add Expenses**: Quick and easy expense entry with amount, category, date, and description
+- **Monthly Summary**: Select any specific month and year to view expenses for that period
 - **Multiple Categories**: 
   - 🍔 Food
   - 🛒 Grocery
@@ -23,7 +24,7 @@ A simple, clean, and efficient web application to track your personal expenses. 
 - **Time-based Summaries**: View expenses for:
   - Today
   - This Week
-  - This Month
+  - This Month (with custom month/year selector)
   - This Year
   - All Time
 
@@ -60,12 +61,35 @@ Since data is stored locally, to use the app across multiple devices:
 - Keep exported JSON files in a safe location (cloud storage, email, etc.)
 - Import your backup if you clear browser data or switch devices
 
-## 📱 Mobile Usage
+## 📱 Mobile Usage & PWA
 
 The app is fully responsive and works great on mobile devices:
 - Add expenses on the go
 - Quick summaries at a glance
 - Touch-friendly interface
+
+### Install as Mobile App (PWA)
+
+This application is a Progressive Web App (PWA) and can be installed on your mobile device:
+
+**On Android/Chrome:**
+1. Open the app in Chrome browser
+2. Tap the "📱 Install App" button or
+3. Tap the three-dot menu → "Add to Home screen" / "Install app"
+4. The app will be installed and can be launched like a native app
+
+**On iOS/Safari:**
+1. Open the app in Safari
+2. Tap the Share button (square with arrow)
+3. Scroll down and tap "Add to Home Screen"
+4. Tap "Add" to install
+
+**Benefits of Installing:**
+- Works offline after first load
+- Faster loading times
+- Full-screen experience
+- App icon on your home screen
+- No browser UI distractions
 
 ## 🛠️ Technology Stack
 
