@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Expense Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Expense Tracker</h1>
+            <p class="subtitle">Track your personal expenses efficiently</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Summary Section -->
+            <section class="summary-section">
+                <h2>Summary</h2>
+                <div class="time-filters">
+                    <button class="filter-btn active" data-period="today">Today</button>
+                    <button class="filter-btn" data-period="week">Week</button>
+                    <button class="filter-btn" data-period="month">Month</button>
+                    <button class="filter-btn" data-period="year">Year</button>
+                    <button class="filter-btn" data-period="all">All Time</button>
+                </div>
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <h3>Total Spent</h3>
+                        <p class="amount" id="totalAmount">₹0.00</p>
+                    </div>
+                    <div class="summary-card">
+                        <h3>Transactions</h3>
+                        <p class="count" id="transactionCount">0</p>
+                    </div>
+                </div>
+                <div class="category-breakdown" id="categoryBreakdown"></div>
+            </section>
+
+            <!-- Add Expense Form -->
+            <section class="add-expense-section">
+                <h2>Add Expense</h2>
+                <form id="expenseForm">
+                    <div class="form-group">
+                        <label for="amount">Amount (₹)</label>
+                        <input type="number" id="amount" step="0.01" required placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <select id="category" required>
+                            <option value="">Select Category</option>
+                            <option value="food">🍔 Food</option>
+                            <option value="grocery">🛒 Grocery</option>
+                            <option value="travel">✈️ Travel</option>
+                            <option value="bike">🏍️ Bike</option>
+                            <option value="rent">🏠 Rent</option>
+                            <option value="investments">📈 Investments</option>
+                            <option value="lending">💸 Lending</option>
+                            <option value="entertainment">🎬 Entertainment</option>
+                            <option value="utilities">💡 Utilities</option>
+                            <option value="health">🏥 Health</option>
+                            <option value="shopping">🛍️ Shopping</option>
+                            <option value="education">📚 Education</option>
+                            <option value="other">📦 Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <input type="text" id="description" placeholder="Brief description (optional)">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Expense</button>
+                </form>
+            </section>
+
+            <!-- Expenses List -->
+            <section class="expenses-section">
+                <div class="section-header">
+                    <h2>Recent Expenses</h2>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="exportBtn">📤 Export</button>
+                        <button class="btn btn-secondary" id="importBtn">📥 Import</button>
+                        <input type="file" id="importFile" accept=".json" style="display: none;">
+                    </div>
+                </div>
+                <div class="search-filter">
+                    <input type="text" id="searchInput" placeholder="Search expenses...">
+                    <select id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="food">Food</option>
+                        <option value="grocery">Grocery</option>
+                        <option value="travel">Travel</option>
+                        <option value="bike">Bike</option>
+                        <option value="rent">Rent</option>
+                        <option value="investments">Investments</option>
+                        <option value="lending">Lending</option>
+                        <option value="entertainment">Entertainment</option>
+                        <option value="utilities">Utilities</option>
+                        <option value="health">Health</option>
+                        <option value="shopping">Shopping</option>
+                        <option value="education">Education</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div id="expensesList" class="expenses-list"></div>
+            </section>
+        </div>
+
+        <footer>
+            <p>Data is stored locally in your browser. Use Export/Import to sync across devices.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
