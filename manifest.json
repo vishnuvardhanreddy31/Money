@@ -57,13 +57,6 @@
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "screenshots/screenshot1.png",
-      "sizes": "540x720",
-      "type": "image/png"
-    }
-  ],
   "categories": ["finance", "productivity", "utilities"],
   "prefer_related_applications": false
 }

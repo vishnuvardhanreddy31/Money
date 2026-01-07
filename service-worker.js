@@ -4,7 +4,15 @@ const urlsToCache = [
   '/Money/index.html',
   '/Money/styles.css',
   '/Money/app.js',
-  '/Money/manifest.json'
+  '/Money/manifest.json',
+  '/Money/icons/icon-72x72.png',
+  '/Money/icons/icon-96x96.png',
+  '/Money/icons/icon-128x128.png',
+  '/Money/icons/icon-144x144.png',
+  '/Money/icons/icon-152x152.png',
+  '/Money/icons/icon-192x192.png',
+  '/Money/icons/icon-384x384.png',
+  '/Money/icons/icon-512x512.png'
 ];
 
 // Install event - cache resources
