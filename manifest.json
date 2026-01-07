@@ -2,7 +2,7 @@
   "name": "Personal Expense Tracker",
   "short_name": "Expense Tracker",
   "description": "Track your personal expenses efficiently with detailed categorization and time-based summaries",
-  "start_url": "/Money/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#f5f5f5",
   "theme_color": "#4CAF50",

@@ -1,18 +1,18 @@
 const CACHE_NAME = 'expense-tracker-v1';
 const urlsToCache = [
-  '/Money/',
-  '/Money/index.html',
-  '/Money/styles.css',
-  '/Money/app.js',
-  '/Money/manifest.json',
-  '/Money/icons/icon-72x72.png',
-  '/Money/icons/icon-96x96.png',
-  '/Money/icons/icon-128x128.png',
-  '/Money/icons/icon-144x144.png',
-  '/Money/icons/icon-152x152.png',
-  '/Money/icons/icon-192x192.png',
-  '/Money/icons/icon-384x384.png',
-  '/Money/icons/icon-512x512.png'
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './manifest.json',
+  './icons/icon-72x72.png',
+  './icons/icon-96x96.png',
+  './icons/icon-128x128.png',
+  './icons/icon-144x144.png',
+  './icons/icon-152x152.png',
+  './icons/icon-192x192.png',
+  './icons/icon-384x384.png',
+  './icons/icon-512x512.png'
 ];
 
 // Install event - cache resources

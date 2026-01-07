@@ -149,9 +149,13 @@ class ExpenseTracker {
                 
                 case 'month':
                     if (this.customMonth) {
-                        const [year, month] = this.customMonth.split('-').map(Number);
-                        return expenseDate.getMonth() === (month - 1) &&
-                               expenseDate.getFullYear() === year;
+                        // Validate format before processing
+                        const monthPattern = /^\d{4}-\d{2}$/;
+                        if (monthPattern.test(this.customMonth)) {
+                            const [year, month] = this.customMonth.split('-').map(Number);
+                            return expenseDate.getMonth() === (month - 1) &&
+                                   expenseDate.getFullYear() === year;
+                        }
                     }
                     return expenseDate.getMonth() === now.getMonth() &&
                            expenseDate.getFullYear() === now.getFullYear();
@@ -378,7 +382,7 @@ const tracker = new ExpenseTracker();
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/Money/service-worker.js')
+        navigator.serviceWorker.register('./service-worker.js')
             .then((registration) => {
                 console.log('ServiceWorker registered successfully:', registration.scope);
             })
@@ -413,18 +417,22 @@ function showInstallPromotion() {
     installBtn.addEventListener('click', async () => {
         if (!deferredPrompt) return;
         
-        // Show the install prompt
-        deferredPrompt.prompt();
-        
-        // Wait for the user to respond to the prompt
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-        
-        // Clear the deferredPrompt
-        deferredPrompt = null;
-        
-        // Remove the install button
-        installBtn.remove();
+        try {
+            // Show the install prompt
+            deferredPrompt.prompt();
+            
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            
+            // Clear the deferredPrompt
+            deferredPrompt = null;
+            
+            // Remove the install button
+            installBtn.remove();
+        } catch (error) {
+            console.error('Error during app installation:', error);
+        }
     });
     
     document.body.appendChild(installBtn);
