@@ -149,12 +149,15 @@ class ExpenseTracker {
                 
                 case 'month':
                     if (this.customMonth) {
-                        // Validate format before processing
+                        // Validate format and ranges before processing
                         const monthPattern = /^\d{4}-\d{2}$/;
                         if (monthPattern.test(this.customMonth)) {
                             const [year, month] = this.customMonth.split('-').map(Number);
-                            return expenseDate.getMonth() === (month - 1) &&
-                                   expenseDate.getFullYear() === year;
+                            // Validate month (1-12) and reasonable year range
+                            if (month >= 1 && month <= 12 && year >= 1900 && year <= 2100) {
+                                return expenseDate.getMonth() === (month - 1) &&
+                                       expenseDate.getFullYear() === year;
+                            }
                         }
                     }
                     return expenseDate.getMonth() === now.getMonth() &&
@@ -404,6 +407,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
     showInstallPromotion();
 });
 
+// Show install promotion - creates install button if it doesn't exist (idempotent)
 function showInstallPromotion() {
     // Create install button if it doesn't exist
     const existingBtn = document.getElementById('installBtn');
