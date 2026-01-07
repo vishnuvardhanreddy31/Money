@@ -175,11 +175,11 @@ class ExpenseTracker {
         // Show/hide month selector based on period
         const monthSelector = document.getElementById('monthSelector');
         if (this.currentPeriod === 'month') {
-            monthSelector.style.display = 'flex';
+            monthSelector.classList.remove('hidden');
             // Set custom month to current selection
             this.customMonth = document.getElementById('monthYear').value;
         } else {
-            monthSelector.style.display = 'none';
+            monthSelector.classList.add('hidden');
             this.customMonth = null;
         }
         
@@ -407,15 +407,8 @@ function showInstallPromotion() {
     
     const installBtn = document.createElement('button');
     installBtn.id = 'installBtn';
-    installBtn.className = 'btn btn-secondary';
+    installBtn.className = 'btn btn-secondary install-app-btn';
     installBtn.innerHTML = '📱 Install App';
-    installBtn.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 1000;
-        box-shadow: var(--shadow-lg);
-    `;
     
     installBtn.addEventListener('click', async () => {
         if (!deferredPrompt) return;

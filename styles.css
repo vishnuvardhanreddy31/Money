@@ -153,6 +153,10 @@ section h2 {
     border-color: var(--primary-color);
 }
 
+.hidden {
+    display: none !important;
+}
+
 .summary-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -490,4 +494,13 @@ footer {
 
 .expense-item {
     animation: slideIn 0.3s ease-out;
+}
+
+/* PWA Install Button */
+.install-app-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    box-shadow: var(--shadow-lg);
 }
