@@ -1,0 +1,201 @@
+{
+  "bugs": [
+    {
+      "id": "BUG-001",
+      "files": [
+        "src/utils.c"
+      ],
+      "line_start": 8,
+      "line_end": 15,
+      "buggy_code": "char* copy_string(char* dest, char* src) {\n    int i = 0;\n    while (src[i] != '\\0') {\n        dest[i] = src[i];\n        i++;\n    }\n    return dest;\n}",
+      "fixed_code": "char* copy_string(char* dest, const char* src, size_t dest_size) {\n    size_t i = 0;\n    while (src[i] != '\\0' && i < dest_size - 1) {\n        dest[i] = src[i];\n        i++;\n    }\n    dest[i] = '\\0';\n    return dest;\n}",
+      "description": "Buffer overflow and missing null terminator in copy_string(). The function copies bytes without bounds checking and never writes a null terminator, leading to potential buffer overflow and unterminated string reads.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-002",
+      "files": [
+        "src/utils.c"
+      ],
+      "line_start": 18,
+      "line_end": 20,
+      "buggy_code": "int safe_divide(int a, int b) {\n    return a / b;\n}",
+      "fixed_code": "int safe_divide(int a, int b) {\n    if (b == 0) return 0;\n    return a / b;\n}",
+      "description": "Division by zero: safe_divide() does not check if the divisor 'b' is zero. This causes undefined behavior (SIGFPE crash on most platforms) when called with b=0.",
+      "severity": "HIGH",
+      "category": "Logic Error"
+    },
+    {
+      "id": "BUG-003",
+      "files": [
+        "src/utils.c"
+      ],
+      "line_start": 23,
+      "line_end": 27,
+      "buggy_code": "void* alloc_buffer(size_t size) {\n    void* buf = malloc(size);\n    memset(buf, 0, size);\n    return buf;\n}",
+      "fixed_code": "void* alloc_buffer(size_t size) {\n    void* buf = malloc(size);\n    if (buf == NULL) return NULL;\n    memset(buf, 0, size);\n    return buf;\n}",
+      "description": "Null pointer dereference: alloc_buffer() calls memset on the result of malloc without checking for NULL. If malloc fails (out of memory), memset dereferences NULL causing a segfault.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-004",
+      "files": [
+        "src/utils.c"
+      ],
+      "line_start": 35,
+      "line_end": 48,
+      "buggy_code": "int parse_int(const char* str) {\n    int result = 0;\n    ...\n    result = result * 10 + (str[i] - '0');\n    ...\n}",
+      "fixed_code": "long parse_int(const char* str) {\n    long result = 0;\n    ...\n    if (result > (LONG_MAX - (str[i] - '0')) / 10) return LONG_MAX;\n    result = result * 10 + (str[i] - '0');\n    ...\n}",
+      "description": "Signed integer overflow: parse_int() accumulates digits in an int without overflow checking. For large numeric strings, the multiplication 'result * 10' overflows INT_MAX, causing undefined behavior per C standard.",
+      "severity": "MEDIUM",
+      "category": "Type Safety"
+    },
+    {
+      "id": "BUG-005",
+      "files": [
+        "src/network.c"
+      ],
+      "line_start": 13,
+      "line_end": 20,
+      "buggy_code": "int connect_to_server(const char* host, int port) {\n    if (connection_count >= max_connections) {\n        return -1;\n    }\n    int fd = 42;\n    connection_count++;\n    return fd;\n}",
+      "fixed_code": "int connect_to_server(const char* host, int port) {\n    pthread_mutex_lock(&conn_mutex);\n    if (connection_count >= max_connections) {\n        pthread_mutex_unlock(&conn_mutex);\n        return -1;\n    }\n    int fd = socket(AF_INET, SOCK_STREAM, 0);\n    connection_count++;\n    pthread_mutex_unlock(&conn_mutex);\n    return fd;\n}",
+      "description": "Race condition on shared state: connection_count is read and modified without synchronization. In a multi-threaded environment, concurrent calls can exceed max_connections or corrupt the count. Requires mutex protection.",
+      "severity": "HIGH",
+      "category": "Concurrency"
+    },
+    {
+      "id": "BUG-006",
+      "files": [
+        "src/network.c"
+      ],
+      "line_start": 23,
+      "line_end": 30,
+      "buggy_code": "int send_data(int socket_fd, const char* data, size_t len) {\n    char buffer[256];\n    memcpy(buffer, data, len);\n    return len;\n}",
+      "fixed_code": "int send_data(int socket_fd, const char* data, size_t len) {\n    if (data == NULL || len == 0) return -1;\n    if (len > 256) len = 256;\n    char buffer[256];\n    memcpy(buffer, data, len);\n    return len;\n}",
+      "description": "Stack buffer overflow in send_data(): memcpy copies 'len' bytes into a 256-byte stack buffer without checking if len > 256. A caller passing data larger than 256 bytes corrupts the stack, enabling potential code execution via return address overwrite.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-007",
+      "files": [
+        "src/network.c"
+      ],
+      "line_start": 33,
+      "line_end": 37,
+      "buggy_code": "int receive_data(int socket_fd, char* buffer, size_t buf_size) {\n    int bytes_read = buf_size;\n    buffer[bytes_read] = '\\0';\n    return bytes_read;\n}",
+      "fixed_code": "int receive_data(int socket_fd, char* buffer, size_t buf_size) {\n    if (buf_size == 0) return 0;\n    int bytes_read = buf_size - 1;\n    buffer[bytes_read] = '\\0';\n    return bytes_read;\n}",
+      "description": "Off-by-one out-of-bounds write: buffer[bytes_read] writes at index buf_size, which is one past the end of the allocated buffer. This corrupts adjacent memory, potentially overwriting control data or causing segfaults.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-008",
+      "files": [
+        "src/network.c"
+      ],
+      "line_start": 39,
+      "line_end": 43,
+      "buggy_code": "void close_connection(int socket_fd) {\n    connection_count--;\n}",
+      "fixed_code": "void close_connection(int socket_fd) {\n    close(socket_fd);\n    pthread_mutex_lock(&conn_mutex);\n    if (connection_count > 0) connection_count--;\n    pthread_mutex_unlock(&conn_mutex);\n}",
+      "description": "Resource leak and underflow: close_connection() never calls close() on the socket file descriptor, leaking the OS resource. Also decrements connection_count without checking > 0, which can cause unsigned underflow if called more times than connect.",
+      "severity": "HIGH",
+      "category": "Resource Management"
+    },
+    {
+      "id": "BUG-009",
+      "files": [
+        "src/main.c"
+      ],
+      "line_start": 21,
+      "line_end": 24,
+      "buggy_code": "void print_user_info(const char* user_input) {\n    printf(user_input);\n    printf(\"\\n\");\n}",
+      "fixed_code": "void print_user_info(const char* user_input) {\n    printf(\"%s\", user_input);\n    printf(\"\\n\");\n}",
+      "description": "Format string vulnerability: user-controlled input is passed directly as the format string to printf(). An attacker can use %x, %n format specifiers to read/write arbitrary memory, leading to information disclosure or code execution.",
+      "severity": "HIGH",
+      "category": "Security"
+    },
+    {
+      "id": "BUG-010",
+      "files": [
+        "src/main.c"
+      ],
+      "line_start": 27,
+      "line_end": 33,
+      "buggy_code": "void add_user(const char* name, int id, double balance) {\n    strcpy(users[user_count].name, name);\n    users[user_count].id = id;\n    users[user_count].balance = balance;\n    user_count++;\n}",
+      "fixed_code": "int add_user(const char* name, int id, double balance) {\n    if (user_count >= MAX_USERS) return -1;\n    strncpy(users[user_count].name, name, sizeof(users[0].name) - 1);\n    users[user_count].name[sizeof(users[0].name) - 1] = '\\0';\n    users[user_count].id = id;\n    users[user_count].balance = balance;\n    user_count++;\n    return 0;\n}",
+      "description": "Two bugs: (1) strcpy with no length check overflows the 64-byte name buffer for long inputs. (2) No bounds check on user_count before indexing users[], allowing array out-of-bounds write when MAX_USERS is exceeded.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-011",
+      "files": [
+        "src/main.c"
+      ],
+      "line_start": 36,
+      "line_end": 50,
+      "buggy_code": "void process_data(const char* input) {\n    char* buffer = (char*)malloc(strlen(input) + 1);\n    ...\n    if (strlen(buffer) > 100) {\n        free(buffer);\n    }\n    printf(\"Processed: %s\\n\", buffer);\n    free(buffer);\n}",
+      "fixed_code": "void process_data(const char* input) {\n    char* buffer = (char*)malloc(strlen(input) + 1);\n    if (!buffer) return;\n    strcpy(buffer, input);\n    printf(\"Processed: %s\\n\", buffer);\n    free(buffer);\n}",
+      "description": "Use-after-free and double-free: When strlen(buffer) > 100, the buffer is freed but execution continues to printf() which reads freed memory (use-after-free), then free() is called again (double-free). Both are undefined behavior exploitable for arbitrary code execution.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-012",
+      "files": [
+        "src/main.c"
+      ],
+      "line_start": 53,
+      "line_end": 63,
+      "buggy_code": "int read_config(const char* filename) {\n    FILE* fp = fopen(filename, \"r\");\n    ...\n    if (strncmp(line, \"ERROR\", 5) == 0) {\n        return -2;\n    }\n    ...\n}",
+      "fixed_code": "int read_config(const char* filename) {\n    FILE* fp = fopen(filename, \"r\");\n    if (!fp) return -1;\n    char line[256];\n    while (fgets(line, sizeof(line), fp)) {\n        if (strncmp(line, \"ERROR\", 5) == 0) {\n            fclose(fp);\n            return -2;\n        }\n    }\n    fclose(fp);\n    return 0;\n}",
+      "description": "File handle leak: read_config() opens a file but returns -2 on the ERROR path without calling fclose(). Each leaked FILE* consumes a file descriptor, eventually causing fopen() to fail system-wide when the fd limit is reached.",
+      "severity": "MEDIUM",
+      "category": "Resource Management"
+    },
+    {
+      "id": "BUG-013",
+      "files": [
+        "src/main.c"
+      ],
+      "line_start": 74,
+      "line_end": 74,
+      "buggy_code": "    scanf(\"%s\", input);",
+      "fixed_code": "    if (fgets(input, sizeof(input), stdin)) {\n        input[strcspn(input, \"\\n\")] = '\\0';\n    }",
+      "description": "Unbounded input: scanf(\"%s\") reads until whitespace with no length limit, overflowing the 1024-byte input buffer. Use fgets() with explicit size limit to prevent stack buffer overflow.",
+      "severity": "HIGH",
+      "category": "Security"
+    },
+    {
+      "id": "BUG-014",
+      "files": [
+        "src/utils.c",
+        "src/main.c"
+      ],
+      "line_start": 82,
+      "line_end": 86,
+      "buggy_code": "copy_string(msg, input);",
+      "fixed_code": "strncpy(msg, input, 127);\nmsg[127] = '\\0';",
+      "description": "Cross-module buffer overflow: copy_string() in utils.c has no bounds checking, and main.c passes unbounded user input through it into a 128-byte buffer allocated by alloc_buffer(). An attacker can overflow the heap buffer via the input string.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    },
+    {
+      "id": "BUG-015",
+      "files": [
+        "src/main.c",
+        "src/network.c"
+      ],
+      "line_start": 83,
+      "line_end": 85,
+      "buggy_code": "send_data(fd, msg, strlen(msg));",
+      "fixed_code": "if (strlen(msg) <= 256) {\n    send_data(fd, msg, strlen(msg));\n}",
+      "description": "Cross-module buffer overflow: send_data() in network.c copies data into a 256-byte stack buffer without length validation. main.c passes user-controlled data of arbitrary length, allowing stack buffer overflow and potential code execution.",
+      "severity": "HIGH",
+      "category": "Memory Management"
+    }
+  ]
+}
