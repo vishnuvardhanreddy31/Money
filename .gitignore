@@ -25,3 +25,4 @@ dist/
 build/
 .venv/
 venv/
+_codeql_detected_source_root
