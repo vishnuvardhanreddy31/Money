@@ -2,9 +2,9 @@
 
 import json
 import os
+import sys
 import tempfile
 
-import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from reporter import generate_report
@@ -24,28 +24,28 @@ def test_generate_report_creates_files():
             "category": "Memory Management",
         }
     ]
-    tmpdir = tempfile.mkdtemp()
-    result_path = generate_report(bugs, tmpdir)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        result_path = generate_report(bugs, tmpdir)
 
-    assert os.path.exists(result_path)
-    assert os.path.exists(os.path.join(tmpdir, "report.json"))
+        assert os.path.exists(result_path)
+        assert os.path.exists(os.path.join(tmpdir, "report.json"))
 
-    with open(os.path.join(tmpdir, "report.json")) as f:
-        data = json.load(f)
+        with open(os.path.join(tmpdir, "report.json")) as f:
+            data = json.load(f)
 
-    assert len(data["bugs"]) == 1
-    assert data["bugs"][0]["id"] == "BUG-001"
-    assert data["bugs"][0]["severity"] == "HIGH"
+        assert len(data["bugs"]) == 1
+        assert data["bugs"][0]["id"] == "BUG-001"
+        assert data["bugs"][0]["severity"] == "HIGH"
 
 
 def test_generate_empty_report():
-    tmpdir = tempfile.mkdtemp()
-    generate_report([], tmpdir)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        generate_report([], tmpdir)
 
-    with open(os.path.join(tmpdir, "report.json")) as f:
-        data = json.load(f)
+        with open(os.path.join(tmpdir, "report.json")) as f:
+            data = json.load(f)
 
-    assert data["bugs"] == []
+        assert data["bugs"] == []
 
 
 def test_report_json_schema():
@@ -73,20 +73,20 @@ def test_report_json_schema():
             "category": "Memory Management",
         },
     ]
-    tmpdir = tempfile.mkdtemp()
-    generate_report(bugs, tmpdir)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        generate_report(bugs, tmpdir)
 
-    with open(os.path.join(tmpdir, "report.json")) as f:
-        data = json.load(f)
+        with open(os.path.join(tmpdir, "report.json")) as f:
+            data = json.load(f)
 
-    required_fields = [
-        "id", "files", "line_start", "line_end",
-        "buggy_code", "fixed_code", "description",
-        "severity", "category",
-    ]
-    for bug in data["bugs"]:
-        for field in required_fields:
-            assert field in bug, f"Missing field: {field}"
+        required_fields = [
+            "id", "files", "line_start", "line_end",
+            "buggy_code", "fixed_code", "description",
+            "severity", "category",
+        ]
+        for bug in data["bugs"]:
+            for field in required_fields:
+                assert field in bug, f"Missing field: {field}"
 
 
 if __name__ == "__main__":

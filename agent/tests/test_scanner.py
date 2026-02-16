@@ -1,9 +1,9 @@
 """Tests for the scanner module."""
 
 import os
+import sys
 import tempfile
 
-import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from scanner import (
@@ -15,57 +15,50 @@ from scanner import (
 )
 
 
-def _create_temp_codebase(structure):
-    """Create a temporary directory with C/C++ files.
-
-    Args:
-        structure: Dict mapping relative path -> content.
-
-    Returns:
-        Path to the temp directory.
-    """
-    tmpdir = tempfile.mkdtemp()
+def _populate_dir(tmpdir, structure):
+    """Populate a directory with files from a structure dict."""
     for relpath, content in structure.items():
         full_path = os.path.join(tmpdir, relpath)
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, "w") as f:
             f.write(content)
-    return tmpdir
 
 
 def test_scan_directory_finds_c_files():
-    tmpdir = _create_temp_codebase({
-        "main.c": '#include <stdio.h>\nint main() { return 0; }',
-        "utils.h": '#ifndef UTILS_H\n#define UTILS_H\nvoid helper();\n#endif',
-        "utils.c": '#include "utils.h"\nvoid helper() {}',
-        "readme.txt": "Not a C file",
-    })
-    files = scan_directory(tmpdir)
-    assert "main.c" in files
-    assert "utils.h" in files
-    assert "utils.c" in files
-    assert "readme.txt" not in files
-    assert len(files) == 3
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _populate_dir(tmpdir, {
+            "main.c": '#include <stdio.h>\nint main() { return 0; }',
+            "utils.h": '#ifndef UTILS_H\n#define UTILS_H\nvoid helper();\n#endif',
+            "utils.c": '#include "utils.h"\nvoid helper() {}',
+            "readme.txt": "Not a C file",
+        })
+        files = scan_directory(tmpdir)
+        assert "main.c" in files
+        assert "utils.h" in files
+        assert "utils.c" in files
+        assert "readme.txt" not in files
+        assert len(files) == 3
 
 
 def test_scan_directory_handles_subdirectories():
-    tmpdir = _create_temp_codebase({
-        "src/main.cpp": 'int main() {}',
-        "src/lib/helper.hpp": 'void help();',
-        "include/api.h": '#pragma once',
-    })
-    files = scan_directory(tmpdir)
-    assert len(files) == 3
-    paths = list(files.keys())
-    assert any("main.cpp" in p for p in paths)
-    assert any("helper.hpp" in p for p in paths)
-    assert any("api.h" in p for p in paths)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        _populate_dir(tmpdir, {
+            "src/main.cpp": 'int main() {}',
+            "src/lib/helper.hpp": 'void help();',
+            "include/api.h": '#pragma once',
+        })
+        files = scan_directory(tmpdir)
+        assert len(files) == 3
+        paths = list(files.keys())
+        assert any("main.cpp" in p for p in paths)
+        assert any("helper.hpp" in p for p in paths)
+        assert any("api.h" in p for p in paths)
 
 
 def test_scan_empty_directory():
-    tmpdir = tempfile.mkdtemp()
-    files = scan_directory(tmpdir)
-    assert files == {}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        files = scan_directory(tmpdir)
+        assert files == {}
 
 
 def test_build_dependency_map():
