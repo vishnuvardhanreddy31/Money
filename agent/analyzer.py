@@ -156,14 +156,14 @@ class BugAnalyzer:
             if category not in valid_categories:
                 category = "Logic Error"
 
-            # Require non-empty buggy_code and fixed_code for actionable results
+            # Require non-empty buggy_code, fixed_code, and description for actionable results
             buggy_code = bug.get("buggy_code", "")
             fixed_code = bug.get("fixed_code", "")
             description = bug.get("description", "")
 
-            if not buggy_code.strip() or not description.strip():
+            if not buggy_code.strip() or not fixed_code.strip() or not description.strip():
                 logger.debug(
-                    "Skipping bug with missing buggy_code or description in %s",
+                    "Skipping bug with missing buggy_code, fixed_code, or description in %s",
                     filepaths,
                 )
                 continue

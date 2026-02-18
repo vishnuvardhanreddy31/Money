@@ -14,16 +14,14 @@ C_CPP_EXTENSIONS = {".c", ".h", ".cpp", ".hpp", ".cc", ".hh", ".cxx", ".hxx"}
 
 INCLUDE_PATTERN = re.compile(r'#include\s*[<"]([^>"]+)[>"]')
 
-# Static patterns for common C/C++ bugs — used to generate hints for the LLM
+# Static patterns for common C/C++ bugs — used to generate hints for the LLM.
+# These are intentionally simple single-line checks to flag areas for deeper
+# analysis. They may produce false positives; the LLM verifies each hint.
 _BUG_PATTERNS = [
     (re.compile(r'\bprintf\s*\(\s*[a-zA-Z_]\w*\s*\)'), "Potential format string vulnerability: user-controlled argument as printf format string"),
     (re.compile(r'\bscanf\s*\(\s*"%s"'), "Unbounded scanf %s: missing field width allows buffer overflow"),
     (re.compile(r'\bstrcpy\s*\('), "Unbounded strcpy: no length check, potential buffer overflow"),
     (re.compile(r'\bgets\s*\('), "Use of gets(): always a buffer overflow vulnerability"),
-    (re.compile(r'\bmalloc\s*\([^)]+\)\s*;(?!\s*if)'), "malloc result used without NULL check"),
-    (re.compile(r'\bfree\s*\(\s*(\w+)\s*\)(?!.*\1\s*=\s*NULL)'), "free() without setting pointer to NULL: risk of use-after-free"),
-    (re.compile(r'\b(\w+)\s*/\s*(\w+)(?!.*==\s*0)'), "Potential division by zero: divisor not checked"),
-    (re.compile(r'\bmemcpy\s*\([^,]+,[^,]+,[^)]+\)(?!.*if\s*\()'), "memcpy without bounds validation: potential buffer overflow"),
 ]
 
 

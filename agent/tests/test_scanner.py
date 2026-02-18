@@ -137,8 +137,8 @@ void safe_func() {
 }
 '''
     hints = detect_static_hints(code, "safe.c")
-    # Should not flag printf with a format string
-    assert not any("format string" in h["hint"] for h in hints)
+    # printf with a format string literal should not be flagged
+    assert not any("printf" in h["hint"] for h in hints)
 
 
 if __name__ == "__main__":
