@@ -11,6 +11,7 @@ from scanner import (
     build_dependency_map,
     get_file_context,
     detect_module_boundaries,
+    detect_static_hints,
     chunk_files_for_analysis,
 )
 
@@ -110,6 +111,36 @@ def test_chunk_large_file():
     assert len(chunks) >= 2
 
 
+def test_detect_static_hints_finds_patterns():
+    code = '''#include <stdio.h>
+#include <string.h>
+void foo(const char* input) {
+    printf(input);
+    char buf[64];
+    strcpy(buf, input);
+    scanf("%s", buf);
+}
+'''
+    hints = detect_static_hints(code, "test.c")
+    assert len(hints) >= 3
+    hint_texts = [h["hint"] for h in hints]
+    assert any("printf" in h for h in hint_texts)
+    assert any("strcpy" in h for h in hint_texts)
+    assert any("scanf" in h for h in hint_texts)
+
+
+def test_detect_static_hints_no_false_positives():
+    code = '''#include <stdio.h>
+void safe_func() {
+    int x = 42;
+    printf("%d", x);
+}
+'''
+    hints = detect_static_hints(code, "safe.c")
+    # Should not flag printf with a format string
+    assert not any("format string" in h["hint"] for h in hints)
+
+
 if __name__ == "__main__":
     test_scan_directory_finds_c_files()
     test_scan_directory_handles_subdirectories()
@@ -119,4 +150,6 @@ if __name__ == "__main__":
     test_detect_module_boundaries()
     test_chunk_files()
     test_chunk_large_file()
+    test_detect_static_hints_finds_patterns()
+    test_detect_static_hints_no_false_positives()
     print("All scanner tests passed!")

@@ -70,9 +70,11 @@ The agent generates `report.json` in the output directory:
       "line_end": 18,
       "buggy_code": "char* copy_string(...)",
       "fixed_code": "char* copy_string(...)",
-      "description": "Buffer overflow due to missing bounds check...",
+      "description": "ROOT CAUSE: Buffer overflow due to missing bounds check... IMPACT: ... FIX RATIONALE: ...",
+      "explanation": "Plain-language summary of the bug for developers unfamiliar with the pattern.",
       "severity": "HIGH",
-      "category": "Memory Management"
+      "category": "Memory Management",
+      "confidence": "HIGH"
     }
   ]
 }

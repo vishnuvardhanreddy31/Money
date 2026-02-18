@@ -1,5 +1,6 @@
 """
-Code Scanner - Finds and parses C/C++ source files, builds dependency maps.
+Code Scanner - Finds and parses C/C++ source files, builds dependency maps,
+and provides static pattern hints for common bug patterns.
 """
 
 import os
@@ -12,6 +13,44 @@ logger = logging.getLogger(__name__)
 C_CPP_EXTENSIONS = {".c", ".h", ".cpp", ".hpp", ".cc", ".hh", ".cxx", ".hxx"}
 
 INCLUDE_PATTERN = re.compile(r'#include\s*[<"]([^>"]+)[>"]')
+
+# Static patterns for common C/C++ bugs — used to generate hints for the LLM
+_BUG_PATTERNS = [
+    (re.compile(r'\bprintf\s*\(\s*[a-zA-Z_]\w*\s*\)'), "Potential format string vulnerability: user-controlled argument as printf format string"),
+    (re.compile(r'\bscanf\s*\(\s*"%s"'), "Unbounded scanf %s: missing field width allows buffer overflow"),
+    (re.compile(r'\bstrcpy\s*\('), "Unbounded strcpy: no length check, potential buffer overflow"),
+    (re.compile(r'\bgets\s*\('), "Use of gets(): always a buffer overflow vulnerability"),
+    (re.compile(r'\bmalloc\s*\([^)]+\)\s*;(?!\s*if)'), "malloc result used without NULL check"),
+    (re.compile(r'\bfree\s*\(\s*(\w+)\s*\)(?!.*\1\s*=\s*NULL)'), "free() without setting pointer to NULL: risk of use-after-free"),
+    (re.compile(r'\b(\w+)\s*/\s*(\w+)(?!.*==\s*0)'), "Potential division by zero: divisor not checked"),
+    (re.compile(r'\bmemcpy\s*\([^,]+,[^,]+,[^)]+\)(?!.*if\s*\()'), "memcpy without bounds validation: potential buffer overflow"),
+]
+
+
+def detect_static_hints(content: str, filepath: str) -> List[Dict[str, str]]:
+    """Scan source code for common bug patterns using regex.
+
+    These hints are not definitive bugs but guide the LLM to focus on
+    likely problem areas for higher precision.
+
+    Args:
+        content: The source code to scan.
+        filepath: Path of the file being scanned.
+
+    Returns:
+        List of hint dicts with 'line', 'pattern', and 'hint' keys.
+    """
+    hints = []
+    lines = content.split("\n")
+    for line_num, line in enumerate(lines, 1):
+        for pattern, hint_text in _BUG_PATTERNS:
+            if pattern.search(line):
+                hints.append({
+                    "line": line_num,
+                    "pattern": line.strip(),
+                    "hint": hint_text,
+                })
+    return hints
 
 
 def scan_directory(input_path: str) -> Dict[str, str]:

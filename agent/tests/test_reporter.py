@@ -58,8 +58,10 @@ def test_report_json_schema():
             "buggy_code": "int x = 0;",
             "fixed_code": "int x = 1;",
             "description": "Incorrect initialization",
+            "explanation": "Variable x should be initialized to 1, not 0.",
             "severity": "LOW",
             "category": "Logic Error",
+            "confidence": "MEDIUM",
         },
         {
             "id": "BUG-002",
@@ -69,8 +71,10 @@ def test_report_json_schema():
             "buggy_code": "free(ptr);",
             "fixed_code": "if (ptr) { free(ptr); ptr = NULL; }",
             "description": "Use after free possibility",
+            "explanation": "Pointer is freed but not set to NULL, risking use-after-free.",
             "severity": "HIGH",
             "category": "Memory Management",
+            "confidence": "HIGH",
         },
     ]
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -82,7 +86,7 @@ def test_report_json_schema():
         required_fields = [
             "id", "files", "line_start", "line_end",
             "buggy_code", "fixed_code", "description",
-            "severity", "category",
+            "explanation", "severity", "category", "confidence",
         ]
         for bug in data["bugs"]:
             for field in required_fields:
