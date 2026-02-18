@@ -21,7 +21,7 @@ QGENIE_BASE_URL = "https://qgenie-api.qualcomm.com/v1"
 
 
 class RateLimiter:
-    """Token-bucket rate limiter for API requests.
+    """Sliding-window rate limiter for API requests.
 
     Ensures no more than ``max_requests`` are made within a sliding
     window of ``period`` seconds.
@@ -35,29 +35,26 @@ class RateLimiter:
 
     def wait(self):
         """Block until a request is allowed under the rate limit."""
-        with self._lock:
-            now = time.monotonic()
-            # Remove timestamps outside the current window
-            self._timestamps = [
-                t for t in self._timestamps if now - t < self.period
-            ]
-            if len(self._timestamps) >= self.max_requests:
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                # Remove timestamps outside the current window
+                self._timestamps = [
+                    t for t in self._timestamps if now - t < self.period
+                ]
+                if len(self._timestamps) < self.max_requests:
+                    self._timestamps.append(now)
+                    return
                 sleep_time = self.period - (now - self._timestamps[0])
-                if sleep_time > 0:
-                    logger.info(
-                        "Rate limit reached (%d/%d). Waiting %.1fs...",
-                        len(self._timestamps),
-                        self.max_requests,
-                        sleep_time,
-                    )
-                    self._lock.release()
-                    time.sleep(sleep_time)
-                    self._lock.acquire()
-                    now = time.monotonic()
-                    self._timestamps = [
-                        t for t in self._timestamps if now - t < self.period
-                    ]
-            self._timestamps.append(time.monotonic())
+            # Sleep outside the lock so other threads are not blocked
+            if sleep_time > 0:
+                logger.info(
+                    "Rate limit reached (%d/%d). Waiting %.1fs...",
+                    self.max_requests,
+                    self.max_requests,
+                    sleep_time,
+                )
+                time.sleep(sleep_time)
 
 
 class ResponseCache:
