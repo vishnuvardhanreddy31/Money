@@ -8,8 +8,18 @@ C/C++ codebases. Built for the QGenie Summit Hackathon.
 Usage:
     python agent.py <input_code_path> <output_result_path> <qgenie_api_key>
 
+Environment variables (optional):
+    FALLBACK_MODELS         Comma-separated list of fallback model names
+                            (e.g. "gpt-4o-mini,gpt-3.5-turbo").
+    MAX_REQUESTS_PER_MINUTE Maximum API requests per 60-second window
+                            (default: 0 = unlimited).
+    ENABLE_CACHE            Set to "0" or "false" to disable response caching
+                            (default: enabled).
+
 Docker execution:
     docker run --rm \\
+        -e FALLBACK_MODELS="gpt-4o-mini" \\
+        -e MAX_REQUESTS_PER_MINUTE=10 \\
         -v /host/input:/data/input \\
         -v /host/output:/data/output \\
         my-agent-image \\
@@ -17,6 +27,7 @@ Docker execution:
 """
 
 import logging
+import os
 import sys
 import time
 
@@ -45,9 +56,22 @@ def main():
     output_result_path = sys.argv[2]
     qgenie_api_key = sys.argv[3]
 
+    # Read optional configuration from environment variables
+    fallback_models_raw = os.environ.get("FALLBACK_MODELS", "")
+    fallback_models = [
+        m.strip() for m in fallback_models_raw.split(",") if m.strip()
+    ]
+    max_rpm = int(os.environ.get("MAX_REQUESTS_PER_MINUTE", "0"))
+    enable_cache = os.environ.get("ENABLE_CACHE", "1").lower() not in ("0", "false")
+
     logger.info("QGenie Code Debugging Agent starting...")
     logger.info("Input path: %s", input_code_path)
     logger.info("Output path: %s", output_result_path)
+    if fallback_models:
+        logger.info("Fallback models: %s", fallback_models)
+    if max_rpm > 0:
+        logger.info("Rate limit: %d requests/minute", max_rpm)
+    logger.info("Response cache: %s", "enabled" if enable_cache else "disabled")
 
     start_time = time.time()
 
@@ -62,7 +86,12 @@ def main():
 
     # Step 2: Trace - Initialize QGenie SDK and analyze
     logger.info("Step 2/4: TRACE - Initializing QGenie SDK and mapping dependencies...")
-    client = QGenieClient(api_key=qgenie_api_key)
+    client = QGenieClient(
+        api_key=qgenie_api_key,
+        fallback_models=fallback_models,
+        max_requests_per_minute=max_rpm,
+        enable_cache=enable_cache,
+    )
 
     # Step 3: Fix - Run multi-tier bug analysis
     logger.info("Step 3/4: FIX - Running multi-tier bug analysis...")
@@ -77,6 +106,16 @@ def main():
     logger.info("Agent completed in %.2f seconds", elapsed)
     logger.info("Report: %s", report_path)
     logger.info("Bugs detected: %d", len(bugs))
+
+    # Log cache statistics if caching is enabled
+    cache_stats = client.cache.stats
+    if cache_stats["hits"] > 0:
+        logger.info(
+            "Cache stats: %d hits, %d misses, %d entries",
+            cache_stats["hits"],
+            cache_stats["misses"],
+            cache_stats["size"],
+        )
 
 
 if __name__ == "__main__":

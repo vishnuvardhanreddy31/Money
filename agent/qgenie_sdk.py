@@ -2,11 +2,17 @@
 QGenie SDK Client - OpenAI-compatible wrapper for QGenie API.
 
 The QGenie SDK provides an interface similar to the OpenAI API for
-code analysis and debugging tasks.
+code analysis and debugging tasks. Supports fallback models, rate
+limiting, and response caching.
 """
 
+import hashlib
 import json
 import logging
+import threading
+import time
+from typing import List, Optional
+
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -14,16 +20,183 @@ logger = logging.getLogger(__name__)
 QGENIE_BASE_URL = "https://qgenie-api.qualcomm.com/v1"
 
 
-class QGenieClient:
-    """Client for the QGenie SDK, wrapping OpenAI-compatible endpoints."""
+class RateLimiter:
+    """Token-bucket rate limiter for API requests.
 
-    def __init__(self, api_key: str, base_url: str = QGENIE_BASE_URL):
+    Ensures no more than ``max_requests`` are made within a sliding
+    window of ``period`` seconds.
+    """
+
+    def __init__(self, max_requests: int = 10, period: float = 60.0):
+        self.max_requests = max_requests
+        self.period = period
+        self._timestamps: List[float] = []
+        self._lock = threading.Lock()
+
+    def wait(self):
+        """Block until a request is allowed under the rate limit."""
+        with self._lock:
+            now = time.monotonic()
+            # Remove timestamps outside the current window
+            self._timestamps = [
+                t for t in self._timestamps if now - t < self.period
+            ]
+            if len(self._timestamps) >= self.max_requests:
+                sleep_time = self.period - (now - self._timestamps[0])
+                if sleep_time > 0:
+                    logger.info(
+                        "Rate limit reached (%d/%d). Waiting %.1fs...",
+                        len(self._timestamps),
+                        self.max_requests,
+                        sleep_time,
+                    )
+                    self._lock.release()
+                    time.sleep(sleep_time)
+                    self._lock.acquire()
+                    now = time.monotonic()
+                    self._timestamps = [
+                        t for t in self._timestamps if now - t < self.period
+                    ]
+            self._timestamps.append(time.monotonic())
+
+
+class ResponseCache:
+    """In-memory cache for API responses keyed by content hash.
+
+    Avoids redundant API calls when the same code and context are
+    analyzed more than once (e.g., across L1/L2 tiers).
+    """
+
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+        self._cache: dict = {}
+        self._hits = 0
+        self._misses = 0
+
+    @staticmethod
+    def _make_key(model: str, system_prompt: str, user_prompt: str) -> str:
+        raw = f"{model}|{system_prompt}|{user_prompt}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def get(self, model: str, system_prompt: str, user_prompt: str) -> Optional[dict]:
+        if not self.enabled:
+            return None
+        key = self._make_key(model, system_prompt, user_prompt)
+        result = self._cache.get(key)
+        if result is not None:
+            self._hits += 1
+            logger.debug("Cache hit (hits=%d, misses=%d)", self._hits, self._misses)
+        else:
+            self._misses += 1
+        return result
+
+    def put(self, model: str, system_prompt: str, user_prompt: str, value: dict):
+        if not self.enabled:
+            return
+        key = self._make_key(model, system_prompt, user_prompt)
+        self._cache[key] = value
+
+    @property
+    def stats(self) -> dict:
+        return {"hits": self._hits, "misses": self._misses, "size": len(self._cache)}
+
+
+class QGenieClient:
+    """Client for the QGenie SDK, wrapping OpenAI-compatible endpoints.
+
+    Supports fallback models, per-minute rate limiting, and response
+    caching to reduce token consumption.
+
+    Args:
+        api_key: API key for authentication.
+        base_url: Base URL of the QGenie API.
+        fallback_models: Optional list of model names to try when the
+            primary model fails.
+        max_requests_per_minute: Maximum API requests per 60-second window.
+            Set to 0 to disable rate limiting.
+        enable_cache: If True, identical requests are served from an
+            in-memory cache instead of calling the API again.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = QGENIE_BASE_URL,
+        fallback_models: Optional[List[str]] = None,
+        max_requests_per_minute: int = 0,
+        enable_cache: bool = True,
+    ):
         self.api_key = api_key
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
         )
         self.model = "qgenie-coder"
+        self.fallback_models = fallback_models or []
+        self.rate_limiter = (
+            RateLimiter(max_requests=max_requests_per_minute, period=60.0)
+            if max_requests_per_minute > 0
+            else None
+        )
+        self.cache = ResponseCache(enabled=enable_cache)
+
+    def _call_api(self, model: str, system_prompt: str, user_prompt: str) -> dict:
+        """Make a single API call with the given model.
+
+        Raises on failure so the caller can attempt fallback models.
+        """
+        if self.rate_limiter:
+            self.rate_limiter.wait()
+
+        response = self.client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content
+        return json.loads(content)
+
+    def _call_with_fallback(
+        self, system_prompt: str, user_prompt: str, label: str
+    ) -> dict:
+        """Try the primary model, then each fallback model in order.
+
+        Args:
+            system_prompt: System prompt for the API call.
+            user_prompt: User prompt for the API call.
+            label: Human-readable label used in log messages.
+
+        Returns:
+            Parsed JSON response dict, or ``{"bugs": []}`` if all
+            models fail.
+        """
+        # Check cache first
+        cached = self.cache.get(self.model, system_prompt, user_prompt)
+        if cached is not None:
+            logger.info("Cache hit for %s — skipping API call", label)
+            return cached
+
+        models_to_try = [self.model] + self.fallback_models
+        for model in models_to_try:
+            try:
+                logger.debug("Trying model '%s' for %s", model, label)
+                result = self._call_api(model, system_prompt, user_prompt)
+                self.cache.put(self.model, system_prompt, user_prompt, result)
+                if model != self.model:
+                    logger.info(
+                        "Fallback model '%s' succeeded for %s", model, label
+                    )
+                return result
+            except Exception as e:
+                logger.warning(
+                    "Model '%s' failed for %s: %s", model, label, e
+                )
+        logger.error("All models failed for %s", label)
+        return {"bugs": []}
 
     def analyze_code(self, code: str, filepath: str, context: str = "") -> dict:
         """Analyze a code snippet for bugs using QGenie.
@@ -38,22 +211,7 @@ class QGenieClient:
         """
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_analysis_prompt(code, filepath, context)
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.1,
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content
-            return json.loads(content)
-        except Exception as e:
-            logger.error("QGenie API call failed for %s: %s", filepath, e)
-            return {"bugs": []}
+        return self._call_with_fallback(system_prompt, user_prompt, filepath)
 
     def analyze_cross_module(self, files_content: dict, dependency_map: dict) -> dict:
         """Analyze cross-module dependencies for architectural bugs.
@@ -67,22 +225,8 @@ class QGenieClient:
         """
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_cross_module_prompt(files_content, dependency_map)
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.1,
-                response_format={"type": "json_object"},
-            )
-            content = response.choices[0].message.content
-            return json.loads(content)
-        except Exception as e:
-            logger.error("QGenie cross-module analysis failed: %s", e)
-            return {"bugs": []}
+        label = "cross-module[%s]" % ",".join(files_content.keys())
+        return self._call_with_fallback(system_prompt, user_prompt, label)
 
     def _build_system_prompt(self) -> str:
         return """You are an expert C/C++ code debugging agent. Your task is to analyze

@@ -2,6 +2,8 @@
 Bug Analyzer - Multi-tier bug detection using QGenie SDK.
 
 Implements L1 (single-file), L2 (multi-function), and L3 (cross-module) analysis.
+Handles large codebases by splitting oversized files and modules into manageable
+chunks before sending them to the API.
 """
 
 import logging
@@ -17,9 +19,71 @@ from scanner import (
 
 logger = logging.getLogger(__name__)
 
+# Maximum characters per file before it is split into chunks for analysis.
+MAX_FILE_CHARS = 30000
+
+# Maximum total characters per cross-module analysis request.
+MAX_MODULE_CHARS = 50000
+
+
+def _split_file_into_chunks(content: str, filepath: str, max_chars: int = MAX_FILE_CHARS) -> List[dict]:
+    """Split a large file into overlapping chunks at function boundaries.
+
+    Each chunk is returned as a dict with ``code``, ``filepath`` (annotated
+    with the chunk index), and ``offset`` (the 1-based starting line number
+    within the original file).
+
+    Args:
+        content: Full source code of the file.
+        filepath: Original file path.
+        max_chars: Approximate maximum characters per chunk.
+
+    Returns:
+        A list of chunk dicts.  For files smaller than *max_chars* the
+        list contains a single entry covering the whole file.
+    """
+    if len(content) <= max_chars:
+        return [{"code": content, "filepath": filepath, "offset": 1}]
+
+    lines = content.split("\n")
+    chunks: List[dict] = []
+    current_lines: List[str] = []
+    current_chars = 0
+    chunk_start_line = 1
+
+    for i, line in enumerate(lines, 1):
+        current_lines.append(line)
+        current_chars += len(line) + 1  # +1 for newline
+
+        if current_chars >= max_chars:
+            chunk_code = "\n".join(current_lines)
+            chunks.append({
+                "code": chunk_code,
+                "filepath": f"{filepath} [chunk {len(chunks) + 1}]",
+                "offset": chunk_start_line,
+            })
+            current_lines = []
+            current_chars = 0
+            chunk_start_line = i + 1
+
+    if current_lines:
+        chunk_code = "\n".join(current_lines)
+        chunks.append({
+            "code": chunk_code,
+            "filepath": f"{filepath} [chunk {len(chunks) + 1}]",
+            "offset": chunk_start_line,
+        })
+
+    logger.info("Split %s into %d chunks for analysis", filepath, len(chunks))
+    return chunks
+
 
 class BugAnalyzer:
-    """Multi-tier bug analyzer using QGenie SDK."""
+    """Multi-tier bug analyzer using QGenie SDK.
+
+    Automatically splits large files and modules into smaller chunks so
+    that the agent can handle arbitrarily large codebases.
+    """
 
     def __init__(self, client: QGenieClient, files: Dict[str, str]):
         """Initialize the analyzer.
@@ -53,7 +117,11 @@ class BugAnalyzer:
         return self.all_bugs
 
     def _run_l1_analysis(self):
-        """L1: Analyze each file individually for simple logic bugs."""
+        """L1: Analyze each file individually for simple logic bugs.
+
+        Large files are automatically split into chunks so that they
+        stay within API token limits.
+        """
         for filepath, content in self.files.items():
             if not content.strip():
                 continue
@@ -75,12 +143,14 @@ class BugAnalyzer:
                     "  Found %d static hints for %s", len(hints), filepath
                 )
 
-            result = self.client.analyze_code(
-                code=content,
-                filepath=filepath,
-                context=hint_context,
-            )
-            self._process_results(result, [filepath])
+            chunks = _split_file_into_chunks(content, filepath)
+            for chunk in chunks:
+                result = self.client.analyze_code(
+                    code=chunk["code"],
+                    filepath=chunk["filepath"],
+                    context=hint_context,
+                )
+                self._process_results(result, [filepath])
 
     def _run_l2_analysis(self):
         """L2: Analyze files with their dependency context."""
@@ -99,7 +169,12 @@ class BugAnalyzer:
             self._process_results(result, [filepath])
 
     def _run_l3_analysis(self):
-        """L3: Analyze cross-module dependencies for architectural bugs."""
+        """L3: Analyze cross-module dependencies for architectural bugs.
+
+        Modules exceeding ``MAX_MODULE_CHARS`` are split into smaller
+        sub-groups so they can still be analyzed instead of being skipped
+        entirely.
+        """
         for module in self.modules:
             if len(module) < 2:
                 continue
@@ -108,16 +183,47 @@ class BugAnalyzer:
             module_deps = {fp: self.dep_map.get(fp, []) for fp in module}
 
             total_chars = sum(len(c) for c in module_files.values())
-            if total_chars > 50000:
-                logger.warning(
-                    "Module too large (%d chars), splitting for analysis",
+            if total_chars > MAX_MODULE_CHARS:
+                logger.info(
+                    "Module too large (%d chars), splitting into sub-groups",
                     total_chars,
+                )
+                self._analyze_large_module(module_files, module_deps)
+            else:
+                logger.info("L3 analyzing module: %s", module)
+                result = self.client.analyze_cross_module(module_files, module_deps)
+                self._process_results(result, module)
+
+    def _analyze_large_module(self, module_files: Dict[str, str], module_deps: Dict[str, List[str]]):
+        """Split a large module into sub-groups and analyze each pair.
+
+        Each file is paired with its direct dependencies to form
+        sub-groups small enough for the API.
+        """
+        analyzed_pairs: set = set()
+        for filepath in module_files:
+            deps = [d for d in module_deps.get(filepath, []) if d in module_files]
+            if not deps:
+                continue
+            pair_key = tuple(sorted([filepath] + deps))
+            if pair_key in analyzed_pairs:
+                continue
+            analyzed_pairs.add(pair_key)
+
+            sub_files = {fp: module_files[fp] for fp in pair_key if fp in module_files}
+            sub_deps = {fp: module_deps.get(fp, []) for fp in pair_key}
+            sub_chars = sum(len(c) for c in sub_files.values())
+
+            if sub_chars > MAX_MODULE_CHARS:
+                logger.warning(
+                    "Sub-group still too large (%d chars), skipping: %s",
+                    sub_chars, pair_key,
                 )
                 continue
 
-            logger.info("L3 analyzing module: %s", module)
-            result = self.client.analyze_cross_module(module_files, module_deps)
-            self._process_results(result, module)
+            logger.info("L3 analyzing sub-group: %s", list(pair_key))
+            result = self.client.analyze_cross_module(sub_files, sub_deps)
+            self._process_results(result, list(pair_key))
 
     def _process_results(self, result: dict, filepaths: List[str]):
         """Process API results and add to bug list.
